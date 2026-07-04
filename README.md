@@ -1,5 +1,12 @@
 # power-saver-epp-fix
 
+<p align="center">
+  <img src="assets/power-saver-epp-fix.png" alt="Power Saver EPP Fix project artwork" width="900">
+</p>
+
+> Hinweis / Note: Das Bild ist Projekt-Artwork. Die aktuelle Implementierung
+> richtet sich an Linux/systemd mit `power-profiles-daemon` und Intel EPP.
+
 ## Deutsch
 
 `power-saver-epp-fix` ist ein kleiner systemd-Override fuer Linux-Systeme mit
