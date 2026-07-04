@@ -54,7 +54,7 @@ Getestet auf:
 ### Installation
 
 ```bash
-git clone https://github.com/Pappmann/power-saver-epp-fix.git
+git clone https://github.com/system-tweaks/power-saver-epp-fix.git
 cd power-saver-epp-fix
 sudo ./install.sh
 ```
@@ -163,7 +163,7 @@ Tested on:
 ### Installation
 
 ```bash
-git clone https://github.com/Pappmann/power-saver-epp-fix.git
+git clone https://github.com/system-tweaks/power-saver-epp-fix.git
 cd power-saver-epp-fix
 sudo ./install.sh
 ```
