@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply CPU EPP override for power-profiles-daemon power-saver
+Documentation=man:powerprofilesctl(1)
+Wants=power-profiles-daemon.service
+After=power-profiles-daemon.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/ppd-epp-override
+
+[Install]
+WantedBy=multi-user.target

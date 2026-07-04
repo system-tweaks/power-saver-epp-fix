@@ -1,0 +1,56 @@
+#!/bin/sh
+set -eu
+
+target_epp=balance_power
+state_file=/var/lib/power-profiles-daemon/state.ini
+
+# Give power-profiles-daemon a moment to finish applying its own sysfs writes
+# when this is triggered by a profile change.
+sleep "${PPD_EPP_OVERRIDE_DELAY:-0.2}"
+
+profile="$(powerprofilesctl get 2>/dev/null || true)"
+
+if [ -z "$profile" ] && [ -r "$state_file" ]; then
+	while IFS='=' read -r key value; do
+		if [ "$key" = "Profile" ]; then
+			profile="$value"
+			break
+		fi
+	done < "$state_file"
+fi
+
+[ "$profile" = "power-saver" ] || exit 0
+
+available_file=
+for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_available_preferences \
+	/sys/devices/system/cpu/cpu[0-9]*/cpufreq/available_energy_performance_preferences; do
+	if [ -r "$f" ]; then
+		available_file="$f"
+		break
+	fi
+done
+
+if [ -n "$available_file" ]; then
+	available="$(cat "$available_file")"
+	case " $available " in
+		*" $target_epp "*) ;;
+		*)
+			logger -t ppd-epp-override "EPP preference '$target_epp' is not available: $available"
+			exit 0
+			;;
+	esac
+fi
+
+changed=0
+for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_preference; do
+	[ -e "$f" ] || continue
+	current="$(cat "$f" 2>/dev/null || true)"
+	if [ "$current" != "$target_epp" ]; then
+		printf '%s\n' "$target_epp" > "$f"
+		changed=1
+	fi
+done
+
+if [ "$changed" -eq 1 ]; then
+	logger -t ppd-epp-override "Set CPU energy_performance_preference to $target_epp for power-saver"
+fi
