@@ -11,8 +11,8 @@
 
 `power-saver-epp-fix` ist ein kleiner systemd-Override für Linux-Systeme mit
 `power-profiles-daemon` und Intel `intel_pstate`/HWP. Er behält das GNOME-Profil
-`power-saver` bei, setzt die CPU-EPP-Vorgabe aber automatisch von `power` auf
-`balance_power`.
+`power-saver` bei, setzt die CPU-EPP-Vorgabe aber abhängig von der Stromquelle:
+am Akku auf `power`, am Netz auf `balance_power`.
 
 Das hilft auf Systemen, bei denen der Energiesparmodus zwar den Lüfter ruhig
 hält, aber Maus, UI, Browser oder Audio wegen zu träger CPU-Reaktion ruckeln.
@@ -36,7 +36,8 @@ CPU EPP          = power
 Dieses Projekt lässt `platform_profile=low-power` unverändert und setzt nur:
 
 ```text
-CPU EPP = balance_power
+Akku: CPU EPP = power
+Netz: CPU EPP = balance_power
 ```
 
 Der Override greift nur, wenn das aktive Profil `power-saver` ist.
@@ -72,6 +73,7 @@ Installiert werden:
 /usr/local/sbin/ppd-epp-override
 /etc/systemd/system/ppd-epp-override.service
 /etc/systemd/system/ppd-epp-override.path
+/etc/udev/rules.d/99-ppd-epp-override.rules
 ```
 
 ### Verifikation
@@ -96,11 +98,14 @@ for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
 done | sort | uniq -c
 ```
 
-Im GNOME-Profil `power-saver` sollte danach `balance_power` erscheinen:
+Im Profil `power-saver` sollte danach je nach Stromquelle erscheinen:
 
 ```text
-8 balance_power
+Akku: 8 power
+Netz: 8 balance_power
 ```
+
+Die Zahl kann je nach CPU-Kern-/Thread-Anzahl abweichen.
 
 ### Deinstallation
 
@@ -119,8 +124,8 @@ sudo ./uninstall.sh
 
 `power-saver-epp-fix` is a small systemd override for Linux systems using
 `power-profiles-daemon` with Intel `intel_pstate`/HWP. It keeps the GNOME
-`power-saver` profile active, but automatically changes the CPU EPP hint from
-`power` to `balance_power`.
+`power-saver` profile active, but automatically sets the CPU EPP hint based on
+the current power source: `power` on battery and `balance_power` on AC.
 
 This helps on systems where power saver keeps the fan quiet, but makes the
 mouse, UI, browser, or audio feel sluggish because CPU wake-up behavior is too
@@ -145,7 +150,8 @@ CPU EPP          = power
 This project leaves `platform_profile=low-power` untouched and only applies:
 
 ```text
-CPU EPP = balance_power
+Battery: CPU EPP = power
+AC:      CPU EPP = balance_power
 ```
 
 The override only runs when the active profile is `power-saver`.
@@ -181,6 +187,7 @@ Installed files:
 /usr/local/sbin/ppd-epp-override
 /etc/systemd/system/ppd-epp-override.service
 /etc/systemd/system/ppd-epp-override.path
+/etc/udev/rules.d/99-ppd-epp-override.rules
 ```
 
 ### Verification
@@ -205,11 +212,15 @@ for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
 done | sort | uniq -c
 ```
 
-In the GNOME `power-saver` profile, the result should include `balance_power`:
+In the `power-saver` profile, the result should depend on the current power
+source:
 
 ```text
-8 balance_power
+Battery: 8 power
+AC:      8 balance_power
 ```
+
+The number can differ depending on CPU core/thread count.
 
 ### Uninstall
 

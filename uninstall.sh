@@ -19,10 +19,14 @@ fi
 $SUDO rm -f \
 	/usr/local/sbin/ppd-epp-override \
 	/etc/systemd/system/ppd-epp-override.service \
-	/etc/systemd/system/ppd-epp-override.path
+	/etc/systemd/system/ppd-epp-override.path \
+	/etc/udev/rules.d/99-ppd-epp-override.rules
 
 if command -v systemctl >/dev/null 2>&1; then
 	$SUDO systemctl daemon-reload
+fi
+if command -v udevadm >/dev/null 2>&1; then
+	$SUDO udevadm control --reload-rules
 fi
 
 echo "Removed power-saver EPP override."
