@@ -2,6 +2,8 @@
 set -eu
 
 state_file=/var/lib/power-profiles-daemon/state.ini
+platform_profile_file=/sys/firmware/acpi/platform_profile
+platform_profile_choices_file=/sys/firmware/acpi/platform_profile_choices
 
 detect_power_source() {
 	has_battery=0
@@ -32,64 +34,152 @@ detect_power_source() {
 	fi
 }
 
+get_active_profile() {
+	profile="$(powerprofilesctl get 2>/dev/null || true)"
+
+	if [ -z "$profile" ] && [ -r "$state_file" ]; then
+		while IFS='=' read -r key value; do
+			if [ "$key" = "Profile" ]; then
+				profile="$value"
+				break
+			fi
+		done < "$state_file"
+	fi
+
+	printf '%s\n' "$profile"
+}
+
+has_word() {
+	case " $1 " in
+		*" $2 "*) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+select_platform_profile() {
+	profile="$1"
+	choices="$2"
+
+	case "$profile" in
+		power-saver)
+			if has_word "$choices" low-power; then
+				printf '%s\n' low-power
+			elif has_word "$choices" quiet; then
+				printf '%s\n' quiet
+			fi
+			;;
+		balanced)
+			if has_word "$choices" balanced; then
+				printf '%s\n' balanced
+			fi
+			;;
+		performance)
+			if has_word "$choices" performance; then
+				printf '%s\n' performance
+			fi
+			;;
+	esac
+
+	return 0
+}
+
+apply_platform_profile() {
+	profile="$1"
+
+	[ -r "$platform_profile_file" ] || return 0
+	[ -w "$platform_profile_file" ] || return 0
+	[ -r "$platform_profile_choices_file" ] || return 0
+
+	choices="$(cat "$platform_profile_choices_file" 2>/dev/null || true)"
+	target_platform="$(select_platform_profile "$profile" "$choices")"
+	[ -n "$target_platform" ] || return 0
+
+	current_platform="$(cat "$platform_profile_file" 2>/dev/null || true)"
+	if [ "$current_platform" != "$target_platform" ]; then
+		if printf '%s\n' "$target_platform" > "$platform_profile_file" 2>/dev/null; then
+			logger -t ppd-epp-override "Set ACPI platform_profile to $target_platform for $profile"
+		else
+			logger -t ppd-epp-override "Failed to set ACPI platform_profile to $target_platform for $profile"
+		fi
+	fi
+}
+
+select_epp() {
+	profile="$1"
+	power_source="$2"
+
+	case "$profile" in
+		power-saver)
+			if [ "$power_source" = "battery" ]; then
+				printf '%s\n' power
+			else
+				printf '%s\n' balance_power
+			fi
+			;;
+		balanced)
+			if [ "$power_source" = "battery" ]; then
+				printf '%s\n' balance_power
+			else
+				printf '%s\n' balance_performance
+			fi
+			;;
+		performance)
+			printf '%s\n' performance
+			;;
+	esac
+
+	return 0
+}
+
+apply_epp() {
+	profile="$1"
+	power_source="$2"
+
+	target_epp="$(select_epp "$profile" "$power_source")"
+	[ -n "$target_epp" ] || return 0
+
+	available_file=
+	for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_available_preferences \
+		/sys/devices/system/cpu/cpu[0-9]*/cpufreq/available_energy_performance_preferences; do
+		if [ -r "$f" ]; then
+			available_file="$f"
+			break
+		fi
+	done
+
+	if [ -n "$available_file" ]; then
+		available="$(cat "$available_file")"
+		if ! has_word "$available" "$target_epp"; then
+			logger -t ppd-epp-override "EPP preference '$target_epp' is not available: $available"
+			return 0
+		fi
+	fi
+
+	changed=0
+	for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_preference; do
+		[ -e "$f" ] || continue
+		current="$(cat "$f" 2>/dev/null || true)"
+		if [ "$current" != "$target_epp" ]; then
+			if printf '%s\n' "$target_epp" > "$f" 2>/dev/null; then
+				changed=1
+			else
+				logger -t ppd-epp-override "Failed to set $f to $target_epp"
+			fi
+		fi
+	done
+
+	if [ "$changed" -eq 1 ]; then
+		logger -t ppd-epp-override "Set CPU energy_performance_preference to $target_epp for $profile on $power_source"
+	fi
+}
+
 # Give power-profiles-daemon a moment to finish applying its own sysfs writes
 # when this is triggered by a profile change.
 sleep "${PPD_EPP_OVERRIDE_DELAY:-0.2}"
 
-profile="$(powerprofilesctl get 2>/dev/null || true)"
-
-if [ -z "$profile" ] && [ -r "$state_file" ]; then
-	while IFS='=' read -r key value; do
-		if [ "$key" = "Profile" ]; then
-			profile="$value"
-			break
-		fi
-	done < "$state_file"
-fi
-
-[ "$profile" = "power-saver" ] || exit 0
-
+profile="$(get_active_profile)"
 power_source="$(detect_power_source)"
-case "$power_source" in
-	battery)
-		target_epp=power
-		;;
-	*)
-		target_epp=balance_power
-		power_source=ac
-		;;
-esac
+[ "$power_source" = "battery" ] || power_source=ac
 
-available_file=
-for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_available_preferences \
-	/sys/devices/system/cpu/cpu[0-9]*/cpufreq/available_energy_performance_preferences; do
-	if [ -r "$f" ]; then
-		available_file="$f"
-		break
-	fi
-done
-
-if [ -n "$available_file" ]; then
-	available="$(cat "$available_file")"
-	case " $available " in
-		*" $target_epp "*) ;;
-		*)
-			logger -t ppd-epp-override "EPP preference '$target_epp' is not available: $available"
-			exit 0
-			;;
-	esac
-fi
-
-changed=0
-for f in /sys/devices/system/cpu/cpu[0-9]*/cpufreq/energy_performance_preference; do
-	[ -e "$f" ] || continue
-	current="$(cat "$f" 2>/dev/null || true)"
-	if [ "$current" != "$target_epp" ]; then
-		printf '%s\n' "$target_epp" > "$f"
-		changed=1
-	fi
-done
-
-if [ "$changed" -eq 1 ]; then
-	logger -t ppd-epp-override "Set CPU energy_performance_preference to $target_epp for power-saver on $power_source"
-fi
+apply_platform_profile "$profile"
+apply_epp "$profile" "$power_source"

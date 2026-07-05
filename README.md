@@ -14,6 +14,12 @@
 `power-saver` bei, setzt die CPU-EPP-Vorgabe aber abhängig von der Stromquelle:
 am Akku auf `power`, am Netz auf `balance_power`.
 
+Optional kann zusätzlich ein `platform_profile`-Guard installiert werden. Dieser
+entkoppelt `power-profiles-daemon` vom ACPI-`platform_profile`-Treiber und hält
+das Hardware-Profil passend zum manuell gewählten GNOME-Profil. Manuelle
+Profilwechsel bleiben normal möglich; automatische Rückwechsel durch
+`platform_profile`-Drift werden verhindert.
+
 Das hilft auf Systemen, bei denen der Energiesparmodus zwar den Lüfter ruhig
 hält, aber Maus, UI, Browser oder Audio wegen zu träger CPU-Reaktion ruckeln.
 
@@ -25,22 +31,37 @@ GNOME wählt nur das Power-Profil:
 power-saver / balanced / performance
 ```
 
-Die konkrete CPU-Policy kommt von `power-profiles-daemon`. Auf manchen Intel
-Systemen bedeutet `power-saver`:
+Die konkrete CPU- und Plattform-Policy kommt von `power-profiles-daemon`. Auf
+manchen Intel-Systemen bedeutet `power-saver`:
 
 ```text
 platform_profile = low-power
 CPU EPP          = power
 ```
 
-Dieses Projekt lässt `platform_profile=low-power` unverändert und setzt nur:
+Ohne Guard lässt dieses Projekt `platform_profile=low-power` unverändert und
+setzt vor allem:
 
 ```text
-Akku: CPU EPP = power
-Netz: CPU EPP = balance_power
+power-saver am Akku: CPU EPP = power
+power-saver am Netz: CPU EPP = balance_power
+balanced am Akku:    CPU EPP = balance_power
+balanced am Netz:    CPU EPP = balance_performance
+performance:         CPU EPP = performance
 ```
 
-Der Override greift nur, wenn das aktive Profil `power-saver` ist.
+Mit Guard wird zusätzlich `platform_profile` aus dem manuell gewählten Profil
+abgeleitet:
+
+```text
+power-saver  -> platform_profile = low-power
+balanced     -> platform_profile = balanced
+performance  -> platform_profile = performance
+```
+
+Der Guard setzt kein festes Wunschprofil. Wenn du manuell `balanced` wählst,
+bleibt `balanced` gültig. Wenn du manuell `power-saver` wählst, bleibt
+`power-saver` gültig.
 
 ### Kompatibilität
 
@@ -51,6 +72,7 @@ Gedacht für:
 - Intel `intel_pstate`/HWP
 - CPUs mit `/sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference`
 - Systeme, die den EPP-Wert `balance_power` anbieten
+- Optional für den Guard: `/sys/firmware/acpi/platform_profile`
 
 Getestet auf:
 
@@ -67,6 +89,12 @@ cd power-saver-epp-fix
 sudo ./install.sh
 ```
 
+Mit Schutz gegen automatische `platform_profile`-Rückwechsel:
+
+```bash
+sudo ./install.sh --platform-profile-guard
+```
+
 Installiert werden:
 
 ```text
@@ -75,6 +103,17 @@ Installiert werden:
 /etc/systemd/system/ppd-epp-override.path
 /etc/udev/rules.d/99-ppd-epp-override.rules
 ```
+
+Zusätzlich im Guard-Modus:
+
+```text
+/etc/systemd/system/ppd-epp-override.timer
+/etc/systemd/system/power-profiles-daemon.service.d/10-platform-profile-guard.conf
+```
+
+Die Path-Unit überwacht sowohl Zustandsänderungen von `power-profiles-daemon`
+als auch `platform_profile`-Drift. Der Timer ist ein Fallback für
+Firmware-Änderungen, die kein nutzbares Datei-Änderungsereignis auslösen.
 
 ### Verifikation
 
@@ -107,6 +146,14 @@ Netz: 8 balance_power
 
 Die Zahl kann je nach CPU-Kern-/Thread-Anzahl abweichen.
 
+Im Guard-Modus sollte zusätzlich gelten:
+
+```text
+power-saver  -> platform_profile = low-power
+balanced     -> platform_profile = balanced
+performance  -> platform_profile = performance
+```
+
 ### Deinstallation
 
 ```bash
@@ -118,7 +165,7 @@ sudo ./uninstall.sh
 - kein GNOME-Patch
 - kein Fork von `power-profiles-daemon`
 - kein globaler Performance-Modus
-- keine Änderung für `balanced` oder `performance`
+- kein Profil-Pin, der manuelle Wechsel blockiert
 
 ## English
 
@@ -126,6 +173,12 @@ sudo ./uninstall.sh
 `power-profiles-daemon` with Intel `intel_pstate`/HWP. It keeps the GNOME
 `power-saver` profile active, but automatically sets the CPU EPP hint based on
 the current power source: `power` on battery and `balance_power` on AC.
+
+It can optionally install a `platform_profile` guard. The guard disconnects
+`power-profiles-daemon` from the ACPI `platform_profile` driver and lets this
+tool keep the hardware platform profile aligned with the manually selected
+GNOME power profile. Manual profile switching still works; automatic switches
+caused by `platform_profile` drift are prevented.
 
 This helps on systems where power saver keeps the fan quiet, but makes the
 mouse, UI, browser, or audio feel sluggish because CPU wake-up behavior is too
@@ -139,22 +192,37 @@ GNOME only selects the high-level power profile:
 power-saver / balanced / performance
 ```
 
-The concrete CPU policy is applied by `power-profiles-daemon`. On some Intel
-systems, `power-saver` means:
+The concrete CPU and platform policy is applied by `power-profiles-daemon`. On
+some Intel systems, `power-saver` means:
 
 ```text
 platform_profile = low-power
 CPU EPP          = power
 ```
 
-This project leaves `platform_profile=low-power` untouched and only applies:
+Without the guard, this project leaves `platform_profile=low-power` untouched
+and mainly applies:
 
 ```text
-Battery: CPU EPP = power
-AC:      CPU EPP = balance_power
+power-saver on battery: CPU EPP = power
+power-saver on AC:      CPU EPP = balance_power
+balanced on battery:    CPU EPP = balance_power
+balanced on AC:         CPU EPP = balance_performance
+performance:            CPU EPP = performance
 ```
 
-The override only runs when the active profile is `power-saver`.
+With the guard enabled, `platform_profile` is derived from the manually selected
+profile:
+
+```text
+power-saver  -> platform_profile = low-power
+balanced     -> platform_profile = balanced
+performance  -> platform_profile = performance
+```
+
+The guard does not pin one desired profile. If you manually select `balanced`,
+`balanced` remains valid. If you manually select `power-saver`, `power-saver`
+remains valid.
 
 ### Compatibility
 
@@ -165,6 +233,7 @@ Intended for:
 - Intel `intel_pstate`/HWP
 - CPUs exposing `/sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference`
 - systems advertising the EPP value `balance_power`
+- Optional for the guard: `/sys/firmware/acpi/platform_profile`
 
 Tested on:
 
@@ -181,6 +250,12 @@ cd power-saver-epp-fix
 sudo ./install.sh
 ```
 
+With protection against automatic `platform_profile` switches:
+
+```bash
+sudo ./install.sh --platform-profile-guard
+```
+
 Installed files:
 
 ```text
@@ -189,6 +264,17 @@ Installed files:
 /etc/systemd/system/ppd-epp-override.path
 /etc/udev/rules.d/99-ppd-epp-override.rules
 ```
+
+Additional files in guard mode:
+
+```text
+/etc/systemd/system/ppd-epp-override.timer
+/etc/systemd/system/power-profiles-daemon.service.d/10-platform-profile-guard.conf
+```
+
+The path unit watches both `power-profiles-daemon` state changes and
+`platform_profile` drift. The timer is a fallback for firmware changes that do
+not emit a usable file-change event.
 
 ### Verification
 
@@ -222,6 +308,14 @@ AC:      8 balance_power
 
 The number can differ depending on CPU core/thread count.
 
+In guard mode, the platform profile should also match:
+
+```text
+power-saver  -> platform_profile = low-power
+balanced     -> platform_profile = balanced
+performance  -> platform_profile = performance
+```
+
 ### Uninstall
 
 ```bash
@@ -233,4 +327,4 @@ sudo ./uninstall.sh
 - no GNOME patch
 - no `power-profiles-daemon` fork
 - no global performance mode
-- no change for `balanced` or `performance`
+- no profile pin that blocks manual switching

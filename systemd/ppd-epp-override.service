@@ -1,5 +1,5 @@
 [Unit]
-Description=Apply CPU EPP override for power-profiles-daemon power-saver
+Description=Apply CPU EPP and platform_profile override for power-profiles-daemon
 Documentation=man:powerprofilesctl(1)
 Wants=power-profiles-daemon.service
 After=power-profiles-daemon.service

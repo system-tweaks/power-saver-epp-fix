@@ -1,10 +1,11 @@
 [Unit]
-Description=Watch power-profiles-daemon profile state for CPU EPP override
+Description=Watch power-profiles-daemon profile state for EPP override
 Wants=power-profiles-daemon.service
 After=power-profiles-daemon.service
 
 [Path]
 PathChanged=/var/lib/power-profiles-daemon/state.ini
+PathChanged=/sys/firmware/acpi/platform_profile
 Unit=ppd-epp-override.service
 
 [Install]

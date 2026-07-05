@@ -1,0 +1,11 @@
+[Unit]
+Description=Periodically enforce selected power profile sysfs settings
+
+[Timer]
+OnBootSec=10s
+OnUnitActiveSec=10s
+AccuracySec=1s
+Unit=ppd-epp-override.service
+
+[Install]
+WantedBy=timers.target
