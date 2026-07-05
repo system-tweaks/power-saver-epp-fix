@@ -9,17 +9,17 @@
 
 ## Deutsch
 
-`power-saver-epp-fix` ist ein kleiner systemd-Override fuer Linux-Systeme mit
-`power-profiles-daemon` und Intel `intel_pstate`/HWP. Er behaelt das GNOME-Profil
+`power-saver-epp-fix` ist ein kleiner systemd-Override für Linux-Systeme mit
+`power-profiles-daemon` und Intel `intel_pstate`/HWP. Er behält das GNOME-Profil
 `power-saver` bei, setzt die CPU-EPP-Vorgabe aber automatisch von `power` auf
 `balance_power`.
 
-Das hilft auf Systemen, bei denen der Energiesparmodus zwar den Luefter ruhig
-haelt, aber Maus, UI, Browser oder Audio wegen zu traeger CPU-Reaktion ruckeln.
+Das hilft auf Systemen, bei denen der Energiesparmodus zwar den Lüfter ruhig
+hält, aber Maus, UI, Browser oder Audio wegen zu träger CPU-Reaktion ruckeln.
 
-### Was wird geaendert?
+### Was wird geändert?
 
-GNOME waehlt nur das Power-Profil:
+GNOME wählt nur das Power-Profil:
 
 ```text
 power-saver / balanced / performance
@@ -33,7 +33,7 @@ platform_profile = low-power
 CPU EPP          = power
 ```
 
-Dieses Projekt laesst `platform_profile=low-power` unveraendert und setzt nur:
+Dieses Projekt lässt `platform_profile=low-power` unverändert und setzt nur:
 
 ```text
 CPU EPP = balance_power
@@ -41,9 +41,9 @@ CPU EPP = balance_power
 
 Der Override greift nur, wenn das aktive Profil `power-saver` ist.
 
-### Kompatibilitaet
+### Kompatibilität
 
-Gedacht fuer:
+Gedacht für:
 
 - Linux mit systemd
 - `power-profiles-daemon`
@@ -113,7 +113,7 @@ sudo ./uninstall.sh
 - kein GNOME-Patch
 - kein Fork von `power-profiles-daemon`
 - kein globaler Performance-Modus
-- keine Aenderung fuer `balanced` oder `performance`
+- keine Änderung für `balanced` oder `performance`
 
 ## English
 
