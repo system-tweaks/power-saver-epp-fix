@@ -4,6 +4,11 @@ set -eu
 state_file=/var/lib/power-profiles-daemon/state.ini
 platform_profile_file=/sys/firmware/acpi/platform_profile
 platform_profile_choices_file=/sys/firmware/acpi/platform_profile_choices
+config_file=/etc/power-saver-epp-fix/epp.conf
+
+if [ -r "$config_file" ]; then
+	. "$config_file"
+fi
 
 detect_power_source() {
 	has_battery=0
@@ -113,7 +118,7 @@ select_epp() {
 			if [ "$power_source" = "battery" ]; then
 				printf '%s\n' power
 			else
-				printf '%s\n' balance_power
+				printf '%s\n' "${POWER_SAVER_EPP_AC:-balance_power}"
 			fi
 			;;
 		balanced)

@@ -12,7 +12,8 @@
 `power-saver-epp-fix` ist ein kleiner systemd-Override für Linux-Systeme mit
 `power-profiles-daemon` und Intel `intel_pstate`/HWP. Er behält das GNOME-Profil
 `power-saver` bei, setzt die CPU-EPP-Vorgabe aber abhängig von der Stromquelle:
-am Akku auf `power`, am Netz auf `balance_power`.
+am Akku immer auf `power`, am Netz standardmäßig auf `balance_power` (beim
+Setup auf `power` umstellbar, siehe Installation).
 
 Optional kann zusätzlich ein `platform_profile`-Guard installiert werden. Dieser
 entkoppelt `power-profiles-daemon` vom ACPI-`platform_profile`-Treiber und hält
@@ -44,7 +45,7 @@ setzt vor allem:
 
 ```text
 power-saver am Akku: CPU EPP = power
-power-saver am Netz: CPU EPP = balance_power
+power-saver am Netz: CPU EPP = balance_power (Standard, per --epp-ac wählbar)
 balanced am Akku:    CPU EPP = balance_power
 balanced am Netz:    CPU EPP = balance_performance
 performance:         CPU EPP = performance
@@ -71,7 +72,8 @@ Gedacht für:
 - `power-profiles-daemon`
 - Intel `intel_pstate`/HWP
 - CPUs mit `/sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference`
-- Systeme, die den EPP-Wert `balance_power` anbieten
+- Systeme, die den EPP-Wert `power` anbieten (`balance_power` zusätzlich,
+  falls am Netz gewünscht)
 - Optional für den Guard: `/sys/firmware/acpi/platform_profile`
 
 Getestet auf:
@@ -95,6 +97,18 @@ Mit Schutz gegen automatische `platform_profile`-Rückwechsel:
 sudo ./install.sh --platform-profile-guard
 ```
 
+Der Installer fragt standardmäßig interaktiv (Ja ist vorausgewählt), ob im
+Profil `power-saver` am Netz `balance_power` statt `power` gelten soll. Am
+Akku bleibt es immer bei `power`. Für nicht-interaktive Installationen kann
+die Netz-EPP über eine Option vorgegeben werden:
+
+```bash
+sudo ./install.sh --epp-ac=balance_power --non-interactive
+```
+
+Die Auswahl landet in `/etc/power-saver-epp-fix/epp.conf` und wird von
+`ppd-epp-override` bei jedem Lauf eingelesen.
+
 Installiert werden:
 
 ```text
@@ -102,6 +116,7 @@ Installiert werden:
 /etc/systemd/system/ppd-epp-override.service
 /etc/systemd/system/ppd-epp-override.path
 /etc/udev/rules.d/99-ppd-epp-override.rules
+/etc/power-saver-epp-fix/epp.conf
 ```
 
 Zusätzlich im Guard-Modus:
@@ -137,7 +152,8 @@ for f in /sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference; do
 done | sort | uniq -c
 ```
 
-Im Profil `power-saver` sollte danach je nach Stromquelle erscheinen:
+Im Profil `power-saver` sollte danach je nach Stromquelle erscheinen
+(sofern beim Setup keine abweichende Netz-EPP gewählt wurde):
 
 ```text
 Akku: 8 power
@@ -172,7 +188,8 @@ sudo ./uninstall.sh
 `power-saver-epp-fix` is a small systemd override for Linux systems using
 `power-profiles-daemon` with Intel `intel_pstate`/HWP. It keeps the GNOME
 `power-saver` profile active, but automatically sets the CPU EPP hint based on
-the current power source: `power` on battery and `balance_power` on AC.
+the current power source: always `power` on battery, and by default
+`balance_power` on AC (switchable to `power` during setup, see Installation).
 
 It can optionally install a `platform_profile` guard. The guard disconnects
 `power-profiles-daemon` from the ACPI `platform_profile` driver and lets this
@@ -205,7 +222,7 @@ and mainly applies:
 
 ```text
 power-saver on battery: CPU EPP = power
-power-saver on AC:      CPU EPP = balance_power
+power-saver on AC:      CPU EPP = balance_power (default, choose via --epp-ac)
 balanced on battery:    CPU EPP = balance_power
 balanced on AC:         CPU EPP = balance_performance
 performance:            CPU EPP = performance
@@ -232,7 +249,8 @@ Intended for:
 - `power-profiles-daemon`
 - Intel `intel_pstate`/HWP
 - CPUs exposing `/sys/devices/system/cpu/cpu*/cpufreq/energy_performance_preference`
-- systems advertising the EPP value `balance_power`
+- systems advertising the EPP value `power` (`balance_power` too, if wanted
+  on AC)
 - Optional for the guard: `/sys/firmware/acpi/platform_profile`
 
 Tested on:
@@ -256,6 +274,18 @@ With protection against automatic `platform_profile` switches:
 sudo ./install.sh --platform-profile-guard
 ```
 
+By default the installer interactively asks (Yes is preselected) whether the
+`power-saver` profile should use `balance_power` instead of `power` on AC.
+On battery it always stays `power`. For non-interactive installs the AC EPP
+can be provided via a flag instead:
+
+```bash
+sudo ./install.sh --epp-ac=balance_power --non-interactive
+```
+
+The choice is stored in `/etc/power-saver-epp-fix/epp.conf` and read by
+`ppd-epp-override` on every run.
+
 Installed files:
 
 ```text
@@ -263,6 +293,7 @@ Installed files:
 /etc/systemd/system/ppd-epp-override.service
 /etc/systemd/system/ppd-epp-override.path
 /etc/udev/rules.d/99-ppd-epp-override.rules
+/etc/power-saver-epp-fix/epp.conf
 ```
 
 Additional files in guard mode:
@@ -299,7 +330,7 @@ done | sort | uniq -c
 ```
 
 In the `power-saver` profile, the result should depend on the current power
-source:
+source (unless a different AC EPP was chosen during setup):
 
 ```text
 Battery: 8 power
